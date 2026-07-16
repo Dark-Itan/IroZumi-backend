@@ -44,3 +44,13 @@ dependencies {
 kotlin {
     jvmToolchain(17)
 }
+
+tasks.withType<Jar> {
+    manifest {
+        attributes["Main-Class"] = "com.irozumi.ApplicationKt"
+    }
+    from({
+        configurations.runtimeClasspath.get().filter { it.name.endsWith("jar") }.map { zipTree(it) }
+    })
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
