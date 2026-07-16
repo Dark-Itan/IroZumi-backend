@@ -1,0 +1,6 @@
+[build]
+builder = "nixpacks"
+buildCommand = "./gradlew build -x test"
+
+[deploy]
+startCommand = "java -jar build/libs/IroZumi-1.0.0.jar"
