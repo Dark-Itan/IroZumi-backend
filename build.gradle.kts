@@ -47,7 +47,7 @@ kotlin {
 
 tasks.register<Jar>("buildFatJar") {
     group = "build"
-    archiveClassifier.set("all")
+    archiveClassifier.set("")  // Cambié de "all" a "" para que sea IroZumi-1.0.0.jar
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from(sourceSets.main.get().output)
     dependsOn(configurations.runtimeClasspath)
@@ -57,4 +57,8 @@ tasks.register<Jar>("buildFatJar") {
     manifest {
         attributes["Main-Class"] = "com.irozumi.ApplicationKt"
     }
+}
+
+tasks.build {
+    dependsOn("buildFatJar")
 }
