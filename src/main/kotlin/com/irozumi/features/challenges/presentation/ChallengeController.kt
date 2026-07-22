@@ -8,7 +8,7 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
-
+import com.irozumi.core.cloudinary.CloudinaryService
 class ChallengeController(private val repository: ChallengeRepository) {
 
     suspend fun getActiveChallenges(call: ApplicationCall) {
@@ -23,7 +23,11 @@ class ChallengeController(private val repository: ChallengeRepository) {
     suspend fun submitArtwork(call: ApplicationCall) {
         val request = call.receive<SubmitArtworkRequest>()
         val userId = call.userId
-        val submission = repository.submitArtwork(userId, request.challengeId, request.title, request.category, request.imageUrl)
+        println("Subiendo imagen a Cloudinary...")
+        val cloudinaryResponse = CloudinaryService.uploadImage(request.imageUrl)
+        val imageUrl = cloudinaryResponse.secure_url ?: ""
+        println("Imagen subida: $imageUrl")
+        val submission = repository.submitArtwork(userId, request.challengeId, request.title, request.category, imageUrl)
         call.respond(HttpStatusCode.Created, submission)
     }
 
@@ -36,7 +40,9 @@ class ChallengeController(private val repository: ChallengeRepository) {
 
     suspend fun createChallenge(call: ApplicationCall) {
         val request = call.receive<CreateChallengeRequest>()
+        println("Creando reto: ${request.title}, startDate=${request.startDate}, endDate=${request.endDate}, theme=${request.theme}")
         val challenge = repository.createChallenge(call.userId, request.title, request.description ?: "", request.theme ?: "", request.startDate, request.endDate)
+        println("Reto creado: ${challenge.id}")
         call.respond(HttpStatusCode.Created, challenge)
     }
 }

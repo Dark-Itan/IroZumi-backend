@@ -36,6 +36,16 @@ class CatalogController(private val repository: CatalogRepository) {
         }
     }
 
+    suspend fun deleteProduct(call: ApplicationCall) {
+        val productId = call.parameters["id"] ?: return
+        val userId = call.userId
+        println("Eliminando producto: $productId")
+        repository.deleteProduct(productId, userId)
+        println("Producto eliminado")
+        call.respond(HttpStatusCode.OK, mapOf("message" to "Producto eliminado"))
+    }
+
+
 val ApplicationCall.userId: String
     get() = try {
         val token = request.headers["Authorization"]?.removePrefix("Bearer ") ?: ""

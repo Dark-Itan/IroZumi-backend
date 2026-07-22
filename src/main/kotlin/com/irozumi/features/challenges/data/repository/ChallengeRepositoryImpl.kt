@@ -86,19 +86,38 @@ class ChallengeRepositoryImpl : ChallengeRepository {
     }
 
     override suspend fun createChallenge(userId: String, title: String, description: String, theme: String, startDate: String, endDate: String): ChallengeResponse {
-        return DatabaseFactory.execute { conn ->
-            val sql = "INSERT INTO challenges.challenges (title, description, theme, start_date, end_date, created_by) VALUES (?, ?, ?, ?::date, ?::date, ?::uuid) RETURNING *"
-            conn.prepareStatement(sql).use { stmt ->
-                stmt.setString(1, title); stmt.setString(2, description); stmt.setString(3, theme)
-                stmt.setString(4, startDate); stmt.setString(5, endDate); stmt.setString(6, userId)
-                stmt.executeQuery().use { rs ->
-                    if (rs.next()) ChallengeResponse(
-                        id = rs.getString("id"), title = rs.getString("title"), description = rs.getString("description"),
-                        theme = rs.getString("theme"), startDate = rs.getString("start_date"), endDate = rs.getString("end_date"),
-                        status = rs.getString("status"), createdAt = rs.getString("created_at")
-                    ) else throw Exception("Error al crear reto")
+        println("Insertando reto: title=$title, start=$startDate, end=$endDate, userId=$userId")
+        return try {
+            DatabaseFactory.execute { conn ->
+                val sql = "INSERT INTO challenges.challenges (title, description, theme, start_date, end_date, created_by) VALUES (?, ?, ?, ?::date, ?::date, ?::uuid) RETURNING *"
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.setString(1, title)
+                    stmt.setString(2, description)
+                    stmt.setString(3, theme)
+                    stmt.setDate(4, java.sql.Date.valueOf(startDate))
+                    stmt.setDate(5, java.sql.Date.valueOf(endDate))
+                    stmt.setString(6, userId)
+                    stmt.executeQuery().use { rs ->
+                        if (rs.next()) {
+                            val reto = ChallengeResponse(
+                                id = rs.getString("id"),
+                                title = rs.getString("title"),
+                                description = rs.getString("description"),
+                                theme = rs.getString("theme"),
+                                startDate = rs.getString("start_date"),
+                                endDate = rs.getString("end_date"),
+                                status = rs.getString("status"),
+                                createdAt = rs.getString("created_at")
+                            )
+                            println("Reto creado en BD: ${reto.id}")
+                            reto
+                        } else throw Exception("Error al crear reto")
+                    }
                 }
             }
+        } catch (e: Exception) {
+            println("Error creando reto en BD: ${e.message}")
+            throw e
         }
     }
 

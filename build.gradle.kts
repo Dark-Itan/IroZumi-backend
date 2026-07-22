@@ -39,6 +39,7 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:1.5.6")
     testImplementation("io.ktor:ktor-server-test-host:$ktorVersion")
     testImplementation("org.jetbrains.kotlin:kotlin-test:2.0.0")
+    implementation("com.sun.mail:javax.mail:1.6.2")
 }
 
 kotlin {

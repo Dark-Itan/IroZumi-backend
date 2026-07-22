@@ -8,5 +8,6 @@ fun Route.catalogRoutes(controller: CatalogController) {
     route("/api/v1/catalog") {
         get { controller.getCatalog(call) }
         post { controller.createProduct(call) }
+        delete("/{id}") { controller.deleteProduct(call) }
     }
 }

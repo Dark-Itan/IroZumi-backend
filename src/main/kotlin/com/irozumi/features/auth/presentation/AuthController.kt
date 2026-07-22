@@ -10,6 +10,7 @@ import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import com.irozumi.core.dto.ErrorResponse
+import com.irozumi.features.auth.presentation.VerificationController
 
 class AuthController(private val repository: AuthRepository) {
 
@@ -26,6 +27,11 @@ class AuthController(private val repository: AuthRepository) {
             return
         }
 
+        if (!isValidPassword(request.password)) {
+            call.respond(HttpStatusCode.BadRequest, ErrorResponse("La contraseña no cumple con los requisitos de seguridad"))
+            return
+        }
+
         val user = User(
             email = request.email,
             passwordHash = PasswordHasher.hash(request.password),
@@ -39,6 +45,10 @@ class AuthController(private val repository: AuthRepository) {
         val refreshToken = TokenManager.generateRefreshToken(created.id)
 
         repository.saveRefreshToken(created.id, TokenManager.hashToken(refreshToken))
+
+        // Generar código de verificación
+        val code = VerificationController.generateAndSaveCode(created.email)
+        println("Código de verificación")
 
         call.respond(HttpStatusCode.Created, AuthResponse(
             accessToken = accessToken,
@@ -122,5 +132,19 @@ class AuthController(private val repository: AuthRepository) {
             repository.revokeRefreshTokens(userId)
         } catch (_: Exception) { }
         call.respond(HttpStatusCode.OK, mapOf("message" to "Sesión cerrada"))
+    }
+
+    private fun isValidPassword(password: String): Boolean {
+        if (password.length < 8) return false
+        if (!password.any { it.isUpperCase() }) return false
+        if (!password.any { it.isLowerCase() }) return false
+        if (!password.any { it.isDigit() }) return false
+        if (!password.any { "!@#$%^&*()_+-=[]{}|;:,.<>?".contains(it) }) return false
+
+        val lower = password.lowercase()
+        val sequences = listOf("123", "234", "345", "456", "567", "678", "789", "890", "abc", "bcd", "cde", "def", "efg")
+        if (sequences.any { lower.contains(it) }) return false
+
+        return true
     }
 }

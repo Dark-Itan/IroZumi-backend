@@ -8,15 +8,16 @@ import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import com.irozumi.core.cloudinary.CloudinaryService
-import com.irozumi.core.security.AzureModerationService
 import com.irozumi.features.gallery.data.dto.AddCommentRequest
-import com.irozumi.core.security.GooglePerspectiveService
+import com.irozumi.core.security.BadWordsFilter
+import com.irozumi.core.database.DatabaseFactory
+
 class GalleryController(private val repository: GalleryRepository) {
 
     suspend fun getPosts(call: ApplicationCall) {
         val style = call.request.queryParameters["style"]
         val query = call.request.queryParameters["query"]
-        val posts = repository.getPosts(style, query)
+        val posts = repository.getPosts(style, query, call.userId)
         call.respond(HttpStatusCode.OK, posts)
     }
 
@@ -44,7 +45,13 @@ class GalleryController(private val repository: GalleryRepository) {
             println("[CLOUDINARY] Subiendo imagen...")
             val cloudinaryResponse = CloudinaryService.uploadImage(request.imageBase64)
             println("[CLOUDINARY] Imagen subida: ${cloudinaryResponse.secure_url}")
-            val post = repository.createPost(userId, request.title, request.description, request.style, cloudinaryResponse.secure_url ?: throw Exception("URL de imagen no recibida de Cloudinary"))
+            val post = repository.createPost(
+                userId,
+                request.title,
+                request.description,
+                request.style,
+                cloudinaryResponse.secure_url ?: throw Exception("URL de imagen no recibida de Cloudinary")
+            )
             println("[GALLERY] Post creado con ID: ${post.id}")
             call.respond(HttpStatusCode.Created, post)
         } catch (e: Exception) {
@@ -78,13 +85,50 @@ class GalleryController(private val repository: GalleryRepository) {
         val request = call.receive<AddCommentRequest>()
         val userId = call.userId
 
-        if (GooglePerspectiveService.isToxic(request.content) || AzureModerationService.isToxic(request.content)) {
-            call.respond(HttpStatusCode.BadRequest, ErrorResponse("Tu comentario infringe nuestras normas de comunidad"))
+        if (isUserSuspended(userId)) {
+            call.respond(HttpStatusCode.Forbidden, ErrorResponse("⛔ Cuenta suspendida por 24 horas"))
+            return
+        }
+
+        if (BadWordsFilter.isToxic(request.content)) {
+            val strikes = updateStrikes(userId)
+            val msg = when (strikes) {
+                1 -> "1/3 strikes • Respeta a la comunidad"
+                2 -> "2/3 strikes • Una más y serás suspendido"
+                else -> "3/3 strikes • Cuenta suspendida 24 horas"
+            }
+            call.respond(HttpStatusCode.BadRequest, ErrorResponse(msg))
             return
         }
 
         val comment = repository.addComment(postId, userId, request.content)
         call.respond(HttpStatusCode.OK, comment)
+    }
+
+    private suspend fun updateStrikes(userId: String): Int {
+        return DatabaseFactory.execute { conn ->
+            val sql = """
+            INSERT INTO users.strikes (user_id, count) VALUES (?::uuid, 1)
+            ON CONFLICT (user_id) DO UPDATE SET count = users.strikes.count + 1, updated_at = NOW()
+            RETURNING count
+        """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, userId)
+                stmt.executeQuery().use { rs ->
+                    if (rs.next()) rs.getInt("count") else 0
+                }
+            }
+        }
+    }
+
+    private suspend fun isUserSuspended(userId: String): Boolean {
+        return DatabaseFactory.execute { conn ->
+            val sql = "SELECT suspended_until FROM users.strikes WHERE user_id = ?::uuid AND suspended_until > NOW()"
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, userId)
+                stmt.executeQuery().use { rs -> rs.next() }
+            }
+        }
     }
 }
 

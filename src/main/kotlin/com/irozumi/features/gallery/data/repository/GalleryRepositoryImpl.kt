@@ -9,16 +9,17 @@ import java.sql.ResultSet
 
 class GalleryRepositoryImpl : GalleryRepository {
 
-    override suspend fun getPosts(style: String?, query: String?): List<PostResponse> {
+    override suspend fun getPosts(style: String?, query: String?, currentUserId: String): List<PostResponse> {
         return DatabaseFactory.execute { conn ->
             val sql = buildString {
-                append("SELECT p.*, u.username, u.avatar_url FROM gallery.posts p JOIN users.users u ON p.user_id = u.id WHERE 1=1")
+                append("SELECT p.*, u.username, COALESCE(u.avatar_url, u.profile_picture_url) as avatar_url, CASE WHEN l.user_id IS NOT NULL THEN true ELSE false END as is_liked FROM gallery.posts p JOIN users.users u ON p.user_id = u.id LEFT JOIN gallery.likes l ON p.id = l.post_id AND l.user_id = ?::uuid WHERE 1=1")
                 if (!style.isNullOrBlank() && style != "Todos") append(" AND p.style = ?")
                 if (!query.isNullOrBlank()) append(" AND (p.title ILIKE ? OR p.description ILIKE ?)")
                 append(" ORDER BY p.created_at DESC")
             }
             conn.prepareStatement(sql).use { stmt ->
-                var i = 1
+                stmt.setString(1, currentUserId)
+                var i = 2
                 if (!style.isNullOrBlank() && style != "Todos") stmt.setString(i++, style)
                 if (!query.isNullOrBlank()) {
                     stmt.setString(i++, "%$query%")
@@ -59,7 +60,11 @@ class GalleryRepositoryImpl : GalleryRepository {
 
     override suspend fun getPostById(postId: String): PostResponse? {
         return DatabaseFactory.execute { conn ->
-            val sql = "SELECT p.*, u.username, u.avatar_url FROM gallery.posts p JOIN users.users u ON p.user_id = u.id WHERE p.id = ?::uuid"
+            val sql = """
+            SELECT p.*, u.username, u.avatar_url, false as is_liked 
+            FROM gallery.posts p JOIN users.users u ON p.user_id = u.id 
+            WHERE p.id = ?::uuid
+        """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setString(1, postId)
                 stmt.executeQuery().use { rs ->
@@ -136,11 +141,11 @@ class GalleryRepositoryImpl : GalleryRepository {
     override suspend fun getComments(postId: String): List<CommentResponse> {
         return DatabaseFactory.execute { conn ->
             val sql = """
-                SELECT c.*, u.username, u.avatar_url 
-                FROM gallery.comments c JOIN users.users u ON c.user_id = u.id 
-                WHERE c.post_id = ?::uuid AND c.is_blocked = FALSE
-                ORDER BY c.created_at ASC
-            """.trimIndent()
+    SELECT c.*, u.username, COALESCE(u.avatar_url, u.profile_picture_url) as avatar_url 
+    FROM gallery.comments c JOIN users.users u ON c.user_id = u.id 
+    WHERE c.post_id = ?::uuid AND c.is_blocked = FALSE
+    ORDER BY c.created_at ASC
+""".trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setString(1, postId)
                 stmt.executeQuery().use { rs ->
@@ -175,7 +180,7 @@ class GalleryRepositoryImpl : GalleryRepository {
     }
 
     private fun mapToPostResponse(rs: ResultSet): PostResponse = PostResponse(
-        id = rs.getString("id"), title = rs.getString("title"), imageUrl = rs.getString("image_url"),
+        id = rs.getString("id"), title = rs.getString("title"), imageUrl = rs.getString("image_url"),isLiked = rs.getBoolean("is_liked"),
         technique = rs.getString("technique"), dimensions = rs.getString("dimensions"),
         material = rs.getString("material"), style = rs.getString("style"),
         description = rs.getString("description"), likesCount = rs.getInt("likes_count"),

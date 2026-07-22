@@ -9,7 +9,7 @@ data class CatalogResponse(
     val price: Double,
     val category: String,
     val imageUrl: String?,
-    val rating: Double,
+    val rating: Double =0.0,
     val artistName: String,
     val artistId: String = "",
     val createdAt: String

@@ -18,7 +18,8 @@
         val isForSale: Boolean = false,
         val isLiked: Boolean = false,
         val createdAt: String? = null,
-        val author: AuthorResponse? = null
+        val author: AuthorResponse? = null,
+        
     )
 
     @Serializable

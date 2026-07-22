@@ -19,15 +19,29 @@ class CatalogRepositoryImpl : CatalogRepository {
                 stmt.executeQuery().use { rs ->
                     val list = mutableListOf<CatalogResponse>()
                     while (rs.next()) list.add(CatalogResponse(
-                        id = rs.getString("id"), title = rs.getString("title"),
-                        price = rs.getDouble("price"), category = rs.getString("category"),
-                        imageUrl = rs.getString("image_url"), rating = rs.getDouble("rating"),
+                        id = rs.getString("id"),
+                        title = rs.getString("title"),
+                        price = rs.getDouble("price"),
+                        category = rs.getString("category"),
+                        imageUrl = rs.getString("image_url"),
+                        rating = 0.0,
                         artistName = rs.getString("artist_name"),
                         artistId = rs.getString("artist_id"),
                         createdAt = rs.getString("created_at")
                     ))
                     list
                 }
+            }
+        }
+    }
+
+    override suspend fun deleteProduct(productId: String, userId: String) {
+        DatabaseFactory.execute { conn ->
+            val sql = "DELETE FROM store.catalog WHERE id = ?::uuid AND user_id = ?::uuid"
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, productId)
+                stmt.setString(2, userId)
+                if (stmt.executeUpdate() == 0) throw Exception("No tienes permiso para eliminar este producto")
             }
         }
     }
@@ -44,3 +58,4 @@ class CatalogRepositoryImpl : CatalogRepository {
         return getCatalog(null).first { it.id == newId }
     }
 }
+

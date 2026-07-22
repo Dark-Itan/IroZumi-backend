@@ -5,7 +5,7 @@ import com.irozumi.features.gallery.data.dto.CommentResponse
 import com.irozumi.features.gallery.data.dto.AuthorResponse
 
 interface GalleryRepository {
-    suspend fun getPosts(style: String?, query: String?): List<PostResponse>
+    suspend fun getPosts(style: String?, query: String?, currentUserId: String): List<PostResponse>
     suspend fun getPostById(postId: String): PostResponse?
     suspend fun createPost(userId: String, title: String, description: String, style: String, imageUrl: String): PostResponse
     suspend fun toggleLike(postId: String, userId: String): PostResponse
